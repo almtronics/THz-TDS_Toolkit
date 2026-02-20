@@ -67,10 +67,6 @@ def compute_fft(t, x, window_type="None", start_idx=0, stop_idx=None, tukey_alph
         A dictionary with:
          - "Freqs": Frequency axis (THz)
          - "FFT": Complex FFT output
-         - "Magnitude": abs(FFT)
-         - "Phase": angle(FFT) in radians
-         - "Magnitude (dB)": 20*log10(Magnitude)
-         - "Unwrapped Phase": Continuous phase without 2pi jumps
 
     """
     xw, w, start_idx, stop_idx = apply_window(
@@ -86,17 +82,57 @@ def compute_fft(t, x, window_type="None", start_idx=0, stop_idx=None, tukey_alph
     X = np.fft.fft(xw)
     f = np.fft.fftfreq(len(xw), d=dt)
 
-    mag = np.abs(X)
-    phase = np.angle(X)
-    phase_u = np.unwrap(phase)
-    mag_db = 20 * np.log10(np.maximum(mag, 1e-12))
-
     half = len(xw) // 2
     return {
         "Freqs": f[:half],
         "FFT": X[:half],
-        "Magnitude": mag[:half],
-        "Phase": phase[:half],
-        "Magnitude (dB)": mag_db[:half],
-        "Unwrapped Phase": phase_u[:half]
     }
+
+def compute_mag(fft_complex):
+    """
+    Computes magnitude of the complex FFT.
+    
+    Args:
+        fft_complex : Complex FFT
+        
+    Returns:
+        A dictionary with:
+         - "Magnitude": abs(FFT)
+         - "Magnitude (dB)": 20*log10(Magnitude)
+
+    """
+    mag = np.abs(fft_complex)
+    mag_db = 20 * np.log10(np.maximum(mag, 1e-12))
+    return {
+        "Magnitude": mag,
+        "Magnitude (dB)": mag_db,
+    }
+
+def compute_phase(fft_complex):
+    """
+    Computes phase of the complex FFT.
+    
+    Args:
+        fft_complex : Complex FFT
+        
+    Returns:
+        A dictionary with:
+         - "Phase": angle(FFT) in radians
+
+    """
+    return {"Phase": np.angle(fft_complex)}
+
+def unwrap_phase(phase_wrapped):
+    """
+    Unwrap the wrapped phase.
+    
+    Args:
+        phase_wrapped : Wrapped phase
+        
+    Returns:
+        A dictionary with:
+         - "Unwrapped Phase": Continuous phase without 2pi jumps
+
+    """
+    return {"Unwrapped Phase": np.unwrap(phase_wrapped)}
+    

@@ -12,20 +12,20 @@ from tkinter import ttk
 
 import numpy as np
 
-from core.processing import compute_fft, apply_window
+from core.processing import compute_fft, compute_mag, apply_window
 from ui.base_page import ToolkitPage
 
-class MagnitudePage(ToolkitPage):
+class FrequencyPage(ToolkitPage):
     # Page for plotting frequency-domain magnitude waveform
     def __init__(self, app) -> None:
         """
-        Initialize Magnitude page.
+        Initialize Frequency Domain page.
 
         Args:
             app: Main application instance (THzToolkitApp).
         """
         super().__init__(app)
-        self.name = "Magnitude"
+        self.name = "Frequency Domain"
         # Plot configuration
         self.plot_type = tk.StringVar(value="Magnitude (dB)")
         # Windowing / preview
@@ -92,6 +92,9 @@ class MagnitudePage(ToolkitPage):
         Args:
             parent: Tkinter Frame that will contain this page's widgets.
         """
+        ttk.Button(parent, text="Compute FFT", command=self.on_compute_fft).pack(fill=tk.X, pady=(10, 0))
+        ttk.Separator(parent, orient='horizontal').pack(fill='x', pady=10)
+
         tk.Label(parent, text="Plot Type:", bg="#f5f5f5", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(0,5))
         plot_opts = ["Magnitude", "Magnitude (dB)"]
         cb_plot = ttk.Combobox(parent, textvariable=self.plot_type, values=plot_opts, state="readonly")
@@ -159,7 +162,7 @@ class MagnitudePage(ToolkitPage):
                 ha="center",
                 va="center",
                 transform=ax.transAxes,
-                color="gray",
+                color="gray"
             )
             return
 
@@ -184,22 +187,24 @@ class MagnitudePage(ToolkitPage):
             t = ds["df"]["time"].to_numpy()
             x = ds["df"]["complex"].to_numpy()
 
-            results = compute_fft(
-                t,
-                x,
-                window_type=self.window_type.get(),
-                start_idx=start_idx,
-                stop_idx=stop_idx,
-                tukey_alpha=self.tukey_alpha.get(),
-            )
-
-            ds.setdefault("results", {})
-            ds["results"]["fft"] = results
-
             if self.show_time_preview.get():
                 ax.plot(t, x.real, alpha=0.8, label=ds.get("name", "Unnamed"))
             else:
-                ax.plot(results["Freqs"], results[self.plot_type.get()], label=ds.get("name", "Unnamed"))
+                res = ds.get("results", {})
+                fft_res = res.get("fft")
+
+                if fft_res is None:
+                    ax.text(
+                        0.5, 0.5,
+                        "Press 'Compute FFT' to generate spectrum.",
+                        ha="center", va="center",
+                        transform=ax.transAxes, color="gray"
+                    )
+                    return
+
+                mag_res = compute_mag(fft_res["FFT"])
+                y = mag_res[self.plot_type.get()]  # "Magnitude" or "Magnitude (dB)"
+                ax.plot(fft_res["Freqs"], y, label=ds.get("name", "Unnamed"))
 
         # Draw the window overlay
         if self.show_time_preview.get():
@@ -220,3 +225,44 @@ class MagnitudePage(ToolkitPage):
             ax.plot(t0, w_full * global_scale, "--", linewidth=1.5, label="Window")
 
         ax.legend()
+
+    def on_compute_fft(self) -> None:
+        """
+        Compute and cache the half-spectrum FFT for all loaded datasets.
+        Stored under ds["results"]["fft"] with:
+            - "Freqs": frequency axis
+            - "FFT": complex FFT values
+        """
+        datasets = self.app.data.get_all()
+        if not datasets:
+            self.app.refresh_view()
+            return
+
+        try:
+            start_idx, stop_idx = self._parse_window_indices(datasets)
+        except ValueError:
+            self.start_idx_text.set("Start idx: (invalid time)")
+            self.stop_idx_text.set("Stop idx: (invalid time)")
+            self.app.refresh_view()
+            return
+
+        for ds in datasets:
+            t = ds["df"]["time"].to_numpy()
+            x = ds["df"]["complex"].to_numpy()
+
+            spec = compute_fft(
+                t,
+                x,
+                window_type=self.window_type.get(),
+                start_idx=start_idx,
+                stop_idx=stop_idx,
+                tukey_alpha=self.tukey_alpha.get(),
+            )
+
+            ds.setdefault("results", {})
+            ds["results"]["fft"] = spec
+
+            # FFT changed, any cached phase/unwrap is now wrong
+            ds["results"].pop("phase", None)
+
+        self.app.refresh_view()
