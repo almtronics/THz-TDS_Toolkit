@@ -183,3 +183,11 @@ class PhasePage(ToolkitPage):
             }
 
         self.app.refresh_view()
+
+    def get_config(self) -> dict:
+        """
+        Return the processing configuration for this page (JSON-serializable).
+        """
+        return {
+            "unwrap_method": self.unwrap_method.get(),
+        }

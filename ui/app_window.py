@@ -14,6 +14,8 @@ from tkinter import filedialog, messagebox, ttk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
 
+import json
+
 # Theme constants
 COLOR_NAV_BG = "#d0d0d0"
 COLOR_TAB_INACTIVE = "#e0e0e0"
@@ -46,6 +48,32 @@ class THzToolkitApp:
         self.pages = {}
         self.nav_buttons = {}
         self.current_page = None
+
+    def export_config_dialog(self):
+        """
+        Export processing configuration for the currently active page to JSON.
+        """
+        if not self.current_page:
+            return
+
+        path = filedialog.asksaveasfilename(
+            title="Export Config",
+            defaultextension=".json",
+            filetypes=[("JSON", "*.json")],
+        )
+        if not path:
+            return
+
+        try:
+            cfg = {
+                "app": {"name": "THz-TDS Toolkit", "version": "0.0.1-alpha"},
+                "page": self.current_page.name,
+                "config": self.current_page.get_config(),  # you will add this
+            }
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(cfg, f, indent=2)
+        except Exception as e:
+            messagebox.showerror("Export Config Error", str(e))
 
     def register_page(self, page_class) -> None:
         """
@@ -180,10 +208,8 @@ class THzToolkitApp:
         self.menubar = tk.Menu(self.root)
 
         file_menu = tk.Menu(self.menubar, tearoff=0)
-        file_menu.add_command(label="Import", command=lambda: self._placeholder("Import Data"))
-        file_menu.add_command(label="Export", command=lambda: self._placeholder("Export Data"))
+        file_menu.add_command(label="Export Config", command=self.export_config_dialog)
         file_menu.add_separator()
-        file_menu.add_command(label="Print Page", command=lambda: self._placeholder("Print Page"))
         file_menu.add_command(label="Print Graph (Save)", command=self.save_figure)
         file_menu.add_separator()
         file_menu.add_command(label="Exit", command=self.root.quit)

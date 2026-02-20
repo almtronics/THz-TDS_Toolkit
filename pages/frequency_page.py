@@ -353,3 +353,14 @@ class FrequencyPage(ToolkitPage):
             ds["results"].pop("phase", None)
 
         self.app.refresh_view()
+
+    def get_config(self) -> dict:
+        """
+        Return the processing configuration for this page (JSON-serializable).
+        """
+        return {
+            "window_type": self.window_type.get(),
+            "window_args": self.window_args_text.get(),
+            "start_time_ps": self.start_time_ps.get(),
+            "stop_time_ps": self.stop_time_ps.get(),
+        }

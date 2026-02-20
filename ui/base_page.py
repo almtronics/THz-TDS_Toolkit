@@ -41,3 +41,9 @@ class ToolkitPage:
             ax (matplotlib.axes.Axes): The shared Matplotlib Axes to draw into.
         """
         raise NotImplementedError("Pages must implement render_view().")
+    
+    def get_config(self) -> dict:
+        """
+        Return a JSON-serializable dict describing the page's processing configuration.
+        """
+        return {}
