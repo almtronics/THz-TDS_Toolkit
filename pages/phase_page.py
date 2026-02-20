@@ -26,7 +26,7 @@ class PhasePage(ToolkitPage):
         super().__init__(app)
         self.name = "Phase Analysis"
         # View state
-        self.phase_view = tk.StringVar(value="Unwrapped Phase")  # or "Phase"
+        self.phase_view = tk.StringVar(value="Phase")
         # Unwrap
         self.unwrap_method = tk.StringVar(value="Blind")
         self.preview_wrapped_phase = tk.BooleanVar(value=False)

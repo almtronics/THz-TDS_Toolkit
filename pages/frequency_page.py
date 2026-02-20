@@ -1,7 +1,8 @@
 """
-Magnitude spectrum page.
+Frequency spectrum page.
 
 This page allows the user to:
+- Compute the FFT.
 - Computes and plot the magnitude for all loaded datasets
 - Choose a type of magnitude plot type
 - Apply a time-domain window
@@ -15,6 +16,14 @@ import numpy as np
 from core.processing import compute_fft, compute_mag, apply_window
 from ui.base_page import ToolkitPage
 
+WINDOW_SPECS = {
+    "None":    {"nargs": 0, "help": "No window, args ignored.", "defaults": []},
+    "hann":    {"nargs": 0, "help": "No args needed.", "defaults": []},
+    "hamming": {"nargs": 0, "help": "No args needed.", "defaults": []},
+    "tukey":   {"nargs": 1, "help": "Enter alpha [0, 1].", "defaults": [0.5]},
+}
+WINDOW_CHOICES = list(WINDOW_SPECS.keys())
+
 class FrequencyPage(ToolkitPage):
     # Page for plotting frequency-domain magnitude waveform
     def __init__(self, app) -> None:
@@ -27,17 +36,26 @@ class FrequencyPage(ToolkitPage):
         super().__init__(app)
         self.name = "Frequency Domain"
         # Plot configuration
-        self.plot_type = tk.StringVar(value="Magnitude (dB)")
+        self.plot_type = tk.StringVar(value="Magnitude")
         # Windowing / preview
         self.show_time_preview = tk.BooleanVar(value=False)
         self.window_type = tk.StringVar(value="None")
-        self.tukey_alpha = tk.DoubleVar(value=0.5)
+        self.window_args_text = tk.StringVar(value="")
+        self.window_args_help = tk.StringVar(value=WINDOW_SPECS["None"]["help"])
         # User input time bounds
         self.start_time_ps = tk.StringVar(value="")
         self.stop_time_ps  = tk.StringVar(value="")
         # Snapped indices (read-only)
         self.start_idx_text = tk.StringVar(value="Start idx: -")
         self.stop_idx_text  = tk.StringVar(value="Stop idx: -")
+
+    def _sync_window_args_ui(self):
+        """
+        Sync the window-argument UI elements with the currently selected window.
+        """
+        w = self.window_type.get()
+        spec = WINDOW_SPECS.get(w, WINDOW_SPECS["None"])
+        self.window_args_help.set(spec["help"])
 
     def _snap_time_to_index(self, t, t_ps, side="left") -> int:
         """
@@ -84,6 +102,50 @@ class FrequencyPage(ToolkitPage):
         self.start_idx_text.set(f"Start idx: {start_idx}")
         self.stop_idx_text.set(f"Stop idx: {len(t_ref) if stop_idx is None else stop_idx}")
         return start_idx, stop_idx
+    
+    def _parse_window_args(self, window_type: str) -> list[float]:
+        """
+        Parse the Window args entry for the given window type using WINDOW_SPECS.
+
+        Args:
+            window_type: Selected window name from the combobox
+        Returns:
+            A list of floats representing parsed window parameters.
+        Raises:
+            ValueError: If user-entered args cannot be parsed.
+        """
+        spec = WINDOW_SPECS.get(window_type, WINDOW_SPECS["None"])
+        raw = self.window_args_text.get().strip()
+
+        if spec["nargs"] == 0:
+            return []
+
+        if raw == "":
+            return list(spec["defaults"])
+
+        parts = [p.strip() for p in raw.split(",") if p.strip() != ""]
+        if len(parts) != spec["nargs"]:
+            raise ValueError(f"{window_type} expects {spec['nargs']} arg(s)")
+
+        return [float(p) for p in parts]
+
+
+    def _build_window_spec(self) -> str | tuple:
+        """
+        Build a SciPy-compatible window spec from the selected window and parsed args.
+
+        Returns:
+            A window spec suitable for scipy.signal.get_window
+        Raises:
+            ValueError: If the selected window expects args and parsing fails.
+        """
+        wtype = self.window_type.get()
+        if wtype == "None":
+            return "None"
+
+        args = self._parse_window_args(wtype)
+        return wtype if len(args) == 0 else (wtype, *args)
+
 
     def build_controls(self, parent) -> None:
         """
@@ -108,10 +170,17 @@ class FrequencyPage(ToolkitPage):
         tk.Checkbutton(parent, text="Show time preview (window)",
                variable=self.show_time_preview, bg="#f5f5f5",
                command=self.app.refresh_view).pack(anchor="w", pady=(10, 0))
-        cb_win = ttk.Combobox(parent, textvariable=self.window_type, 
-                             values=["None", "hann", "hamming", "tukey"], state="readonly")
+        cb_win = ttk.Combobox(parent, textvariable=self.window_type,
+                      values=WINDOW_CHOICES, state="readonly")
         cb_win.pack(fill=tk.X, pady=5)
-        cb_win.bind("<<ComboboxSelected>>", lambda e: self.app.refresh_view())
+
+        tk.Label(parent, text="Window args:", bg="#f5f5f5", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(5, 0))
+        ent_args = tk.Entry(parent, textvariable=self.window_args_text)
+        ent_args.pack(fill=tk.X, pady=(0, 2))
+        ent_args.bind("<Return>", lambda e: self.app.refresh_view())
+        tk.Label(parent, textvariable=self.window_args_help, bg="#f5f5f5", fg="gray").pack(anchor="w", pady=(0, 10))
+
+        cb_win.bind("<<ComboboxSelected>>", lambda e: (self._sync_window_args_ui(), self.app.refresh_view()))
 
         tk.Label(parent, text="Window times (ps):", bg="#f5f5f5", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(10, 0))
 
@@ -134,6 +203,7 @@ class FrequencyPage(ToolkitPage):
 
         tk.Label(idx_row, textvariable=self.start_idx_text, bg="#f5f5f5", fg="gray").pack(side=tk.LEFT)
         tk.Label(idx_row, textvariable=self.stop_idx_text,  bg="#f5f5f5", fg="gray").pack(side=tk.LEFT, padx=(15, 0))
+        self._sync_window_args_ui()
 
     def render_view(self, fig, ax) -> None:
         """
@@ -211,13 +281,21 @@ class FrequencyPage(ToolkitPage):
             t0 = datasets[0]["df"]["time"].to_numpy()
             x0 = datasets[0]["df"]["complex"].to_numpy()
 
+            wtype = self.window_type.get()
+            spec_meta = WINDOW_SPECS.get(wtype, WINDOW_SPECS["None"])
+
+            try:
+                window_args = self._parse_window_args(wtype)
+            except ValueError:
+                window_args = list(spec_meta["defaults"])
+
             _xw, w, s0, s1 = apply_window(
                 t0,
                 x0,
-                window_type=self.window_type.get(),
+                window_type=wtype,
+                window_args=window_args,
                 start_idx=start_idx,
                 stop_idx=stop_idx,
-                tukey_alpha=self.tukey_alpha.get(),
             )
 
             w_full = (t0 * 0.0)
@@ -250,13 +328,21 @@ class FrequencyPage(ToolkitPage):
             t = ds["df"]["time"].to_numpy()
             x = ds["df"]["complex"].to_numpy()
 
+            wtype = self.window_type.get()
+            spec_meta = WINDOW_SPECS.get(wtype, WINDOW_SPECS["None"])
+
+            try:
+                window_args = self._parse_window_args(wtype)
+            except ValueError:
+                window_args = list(spec_meta["defaults"])
+
             spec = compute_fft(
                 t,
                 x,
-                window_type=self.window_type.get(),
+                window_type=wtype,
+                window_args=window_args,
                 start_idx=start_idx,
                 stop_idx=stop_idx,
-                tukey_alpha=self.tukey_alpha.get(),
             )
 
             ds.setdefault("results", {})

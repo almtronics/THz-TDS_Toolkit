@@ -4,7 +4,7 @@ The core signal processing functions used by the application.
 import numpy as np
 from scipy import signal
 
-def apply_window(t, x, window_type="None", start_idx=0, stop_idx=None, tukey_alpha=0.5, zero_outside_window=True):
+def apply_window(t, x, window_type="None", window_args=None, start_idx=0, stop_idx=None, zero_outside_window=True):
     """
     Apply a window to the complex time-domain signal.
 
@@ -14,7 +14,7 @@ def apply_window(t, x, window_type="None", start_idx=0, stop_idx=None, tukey_alp
         window_type: Window function name ("None", "hann", "hamming", "tukey", ...).
         start_idx: Start index of the window region.
         stop_idx: Stop index  of the window region.
-        tukey_alpha: Alpha parameter for Tukey window.
+        window_args: Optional list/tuple of extra window parameters for the selected window type
 
     Returns:
         xw (np.ndarray): Windowed signal.
@@ -35,12 +35,12 @@ def apply_window(t, x, window_type="None", start_idx=0, stop_idx=None, tukey_alp
     if window_len == 0:
         return x.copy(), np.array([]), start_idx, stop_idx
 
-    if window_type == "tukey":
-        w = signal.get_window(("tukey", tukey_alpha), window_len)
-    elif window_type == "None":
+    if window_type == "None":
         w = np.ones(window_len)
     else:
-        w = signal.get_window(window_type, window_len)
+        window_args = [] if window_args is None else list(window_args)
+        win_spec = window_type if len(window_args) == 0 else (window_type, *window_args)
+        w = signal.get_window(win_spec, window_len)
 
     if zero_outside_window:
         xw = np.zeros_like(x)
@@ -51,7 +51,7 @@ def apply_window(t, x, window_type="None", start_idx=0, stop_idx=None, tukey_alp
 
     return xw, w, start_idx, stop_idx
 
-def compute_fft(t, x, window_type="None", start_idx=0, stop_idx=None, tukey_alpha=0.5):
+def compute_fft(t, x, window_type="None", window_args=None, start_idx=0, stop_idx=None):
     """
     Computes Fast Fourier Transform (FFT) of time-domain signal.
     
@@ -61,7 +61,7 @@ def compute_fft(t, x, window_type="None", start_idx=0, stop_idx=None, tukey_alph
         window_type : Window function name ("None", "hann", "hamming", "tukey", ...).
         start_idx : Start index for windowing
         stop_idx : Stop index for windowing
-        tukey_alpha : Alpha parameter for Tukey window
+        window_args: Optional list/tuple of extra window parameters
         
     Returns:
         A dictionary with:
@@ -70,14 +70,15 @@ def compute_fft(t, x, window_type="None", start_idx=0, stop_idx=None, tukey_alph
 
     """
     xw, w, start_idx, stop_idx = apply_window(
-        t, x,
+        t,
+        x,
         window_type=window_type,
+        window_args=window_args,
         start_idx=start_idx,
         stop_idx=stop_idx,
-        tukey_alpha=tukey_alpha,
-        zero_outside_window=True
+        zero_outside_window=True,
     )
-    
+
     dt = float(t[1] - t[0])
     X = np.fft.fft(xw)
     f = np.fft.fftfreq(len(xw), d=dt)
