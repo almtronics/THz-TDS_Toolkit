@@ -20,6 +20,7 @@ WINDOW_SPECS = {
     "None":    {"nargs": 0, "help": "No window, args ignored.", "defaults": []},
     "hann":    {"nargs": 0, "help": "No args needed.", "defaults": []},
     "hamming": {"nargs": 0, "help": "No args needed.", "defaults": []},
+    "blackman": {"nargs": 0, "help": "No args needed.", "defaults": []},
     "tukey":   {"nargs": 1, "help": "Enter alpha [0, 1].", "defaults": [0.5]},
 }
 WINDOW_CHOICES = list(WINDOW_SPECS.keys())
