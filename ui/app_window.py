@@ -6,6 +6,7 @@ This module defines the top level GUI shell:
 - Page navigation tab strip
 - Split workspace (left: plot, right: controls)
 """
+import os
 import platform
 import subprocess
 import tkinter as tk
@@ -14,7 +15,7 @@ from tkinter import filedialog, messagebox, ttk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
 
-import json
+from core.file_io import export_time_csv, export_fft_csv, export_phase_csv, export_config_json
 
 # Theme constants
 COLOR_NAV_BG = "#d0d0d0"
@@ -49,7 +50,7 @@ class THzToolkitApp:
         self.nav_buttons = {}
         self.current_page = None
 
-    def export_config_dialog(self):
+    def export_config_dialog(self) -> None:
         """
         Export processing configuration for the currently active page to JSON.
         """
@@ -66,14 +67,61 @@ class THzToolkitApp:
 
         try:
             cfg = {
-                "app": {"name": "THz-TDS Toolkit", "version": "0.0.1-alpha"},
+                "app": {
+                    "name": "THz-TDS Toolkit",
+                    "version": "0.0.1-alpha",
+                },
                 "page": self.current_page.name,
-                "config": self.current_page.get_config(),  # you will add this
+                "config": self.current_page.get_config(),
             }
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(cfg, f, indent=2)
+            export_config_json(path, cfg)
+            messagebox.showinfo("Export (Config)", f"Exported to:\n{path}")
         except Exception as e:
-            messagebox.showerror("Export Config Error", str(e))
+            messagebox.showerror("Export (Config) Error", str(e))
+    
+    def export_data_dialog(self) -> None:
+        """
+        Export datasets and results to CSV files.
+        """
+        datasets = self.data.get_all()
+        if not datasets:
+            messagebox.showinfo("Export (Data)", "No datasets loaded.")
+            return
+
+        out_dir = filedialog.askdirectory(title="Choose export folder")
+        if not out_dir:
+            return
+
+        try:
+            os.makedirs(out_dir, exist_ok=True)
+
+            for ds in datasets:
+                name = ds.get("name", "Unnamed")
+                safe = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in name)
+
+                export_time_csv(os.path.join(out_dir, f"{safe}_time.csv"), ds["df"])
+
+                res = ds.get("results", {})
+                fft_res = res.get("fft")
+                if fft_res is not None:
+                    export_fft_csv(
+                        os.path.join(out_dir, f"{safe}_fft.csv"),
+                        fft_res["Freqs"],
+                        fft_res["FFT"],
+                    )
+
+                phase_res = res.get("phase")
+                if phase_res is not None:
+                    freqs = fft_res["Freqs"] if fft_res is not None else None
+                    export_phase_csv(
+                        os.path.join(out_dir, f"{safe}_phase.csv"),
+                        freqs,
+                        phase_res,
+                    )
+
+            messagebox.showinfo("Export (Data)", f"Exported to:\n{out_dir}")
+        except Exception as e:
+            messagebox.showerror("Export (Data) Error", str(e))
 
     def register_page(self, page_class) -> None:
         """
@@ -208,6 +256,7 @@ class THzToolkitApp:
         self.menubar = tk.Menu(self.root)
 
         file_menu = tk.Menu(self.menubar, tearoff=0)
+        file_menu.add_command(label="Export Data", command=self.export_data_dialog)
         file_menu.add_command(label="Export Config", command=self.export_config_dialog)
         file_menu.add_separator()
         file_menu.add_command(label="Print Graph (Save)", command=self.save_figure)

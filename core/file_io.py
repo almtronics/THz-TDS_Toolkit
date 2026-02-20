@@ -8,6 +8,7 @@ Supports loading THz-TDS CSV files containing:
 """
 import pandas as pd
 import numpy as np
+import json
 
 def load_data(filepath: str) -> pd.DataFrame:
     """
@@ -67,3 +68,60 @@ def load_data(filepath: str) -> pd.DataFrame:
         df["complex"] = df["real"] + 1j * df["imag"]
 
     return df[["time", "real", "imag", "complex"]]
+
+def export_time_csv(path: str, df_time: pd.DataFrame) -> None:
+    """
+    Export time-domain data to CSV.
+
+    Args:
+        path: Output file path.
+        df_time: DataFrame containing time-domain columns.
+    """
+    df_time.to_csv(path, index=False)
+
+
+def export_fft_csv(path: str, freqs, fft_complex) -> None:
+    """
+    Export FFT results to CSV.
+
+    Args:
+        path: Output file path.
+        freqs: Array of frequency values.
+        fft_complex: Complex FFT array.
+    """
+    df = pd.DataFrame({
+        "freq": freqs,
+        "fft_real": np.real(fft_complex),
+        "fft_imag": np.imag(fft_complex),
+        "fft_mag": np.abs(fft_complex),
+    })
+    df.to_csv(path, index=False)
+
+
+def export_phase_csv(path: str, freqs, phase_res: dict) -> None:
+    """
+    Export phase results to CSV.
+
+    Args:
+        path: Output file path.
+        freqs: Array of frequency values.
+        phase_res: Dict containing phase results.
+    """
+    df = pd.DataFrame({
+        "freq": freqs,
+        "phase": phase_res.get("Phase"),
+        "unwrapped_phase": phase_res.get("Unwrapped Phase"),
+        "unwrap_method": phase_res.get("method"),
+    })
+    df.to_csv(path, index=False)
+
+def export_config_json(path: str, config: dict) -> None:
+    """
+    Export configuration dict to a JSON file.
+
+    Args:
+        path: Output file path.
+        config: JSON-serializable configuration dict.
+    """
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(config, f, indent=2)
