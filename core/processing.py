@@ -89,6 +89,23 @@ def compute_fft(t, x, window_type="None", window_args=None, start_idx=0, stop_id
         "FFT": X[:half],
     }
 
+def normalize_fft (fft: dict, ref_fft: dict) -> dict:
+    """
+    Normalize an FFT to a reference FFT.
+
+    Args:
+        fft: dict with keys "Freqs", "FFT"
+        ref_fft: dict with keys "Freqs", "FFT"
+    Returns:
+        dict with keys "Freqs", "FFT" (normalized)
+    """
+    X = fft["FFT"]
+    X_ref = ref_fft["FFT"]
+    # Avoid divide by 0
+    floor = 1e-12
+    X_ref_safe = np.where(np.abs(X_ref) < floor, floor + 0j, X_ref)
+    return {"Freqs": fft["Freqs"], "FFT": X / X_ref_safe}
+
 def compute_mag(fft_complex):
     """
     Computes magnitude of the complex FFT.

@@ -80,7 +80,7 @@ def export_time_csv(path: str, df_time: pd.DataFrame) -> None:
     df_time.to_csv(path, index=False)
 
 
-def export_fft_csv(path: str, freqs, fft_complex) -> None:
+def export_fft_csv(path: str, freqs, fft_complex, fft_complex_norm=None) -> None:
     """
     Export FFT results to CSV.
 
@@ -88,6 +88,7 @@ def export_fft_csv(path: str, freqs, fft_complex) -> None:
         path: Output file path.
         freqs: Array of frequency values.
         fft_complex: Complex FFT array.
+        fft_complex_norm: (Optional) Normalized complex FFT array.
     """
     df = pd.DataFrame({
         "freq": freqs,
@@ -95,10 +96,15 @@ def export_fft_csv(path: str, freqs, fft_complex) -> None:
         "fft_imag": np.imag(fft_complex),
         "fft_mag": np.abs(fft_complex),
     })
+    if fft_complex_norm is not None:
+        df["fft_norm_real"] = np.real(fft_complex_norm)
+        df["fft_norm_imag"] = np.imag(fft_complex_norm)
+        df["fft_norm_mag"] = np.abs(fft_complex_norm)
+
     df.to_csv(path, index=False)
 
 
-def export_phase_csv(path: str, freqs, phase_res: dict) -> None:
+def export_phase_csv(path: str, freqs, phase_res: dict, phase_norm_res: dict = None) -> None:
     """
     Export phase results to CSV.
 
@@ -106,6 +112,7 @@ def export_phase_csv(path: str, freqs, phase_res: dict) -> None:
         path: Output file path.
         freqs: Array of frequency values.
         phase_res: Dict containing phase results.
+        phase_norm_res: (Optional) Dict containing normalized phase results.
     """
     df = pd.DataFrame({
         "freq": freqs,
@@ -113,6 +120,10 @@ def export_phase_csv(path: str, freqs, phase_res: dict) -> None:
         "unwrapped_phase": phase_res.get("Unwrapped Phase"),
         "unwrap_method": phase_res.get("method"),
     })
+    if phase_norm_res is not None:
+        df["phase_norm"] = phase_norm_res.get("Phase")
+        df["unwrapped_phase_norm"] = phase_norm_res.get("Unwrapped Phase")
+
     df.to_csv(path, index=False)
 
 def export_config_json(path: str, config: dict) -> None:

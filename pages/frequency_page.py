@@ -13,7 +13,7 @@ from tkinter import ttk
 
 import numpy as np
 
-from core.processing import compute_fft, compute_mag, apply_window
+from core.processing import compute_fft, compute_mag, apply_window, normalize_fft
 from ui.base_page import ToolkitPage
 
 WINDOW_SPECS = {
@@ -159,7 +159,7 @@ class FrequencyPage(ToolkitPage):
         ttk.Separator(parent, orient='horizontal').pack(fill='x', pady=10)
 
         tk.Label(parent, text="Plot Type:", bg="#f5f5f5", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(0,5))
-        plot_opts = ["Magnitude", "Magnitude (dB)"]
+        plot_opts = ["Magnitude", "Magnitude (dB)", "Normalized Magnitude", "Normalized Magnitude (dB)"]
         cb_plot = ttk.Combobox(parent, textvariable=self.plot_type, values=plot_opts, state="readonly")
         cb_plot.pack(fill=tk.X, pady=(0, 15))
         cb_plot.bind("<<ComboboxSelected>>", lambda e: self.app.refresh_view())
@@ -254,6 +254,11 @@ class FrequencyPage(ToolkitPage):
                 x_all = ds["df"]["complex"].to_numpy()
                 global_scale = max(global_scale, float(abs(x_all.real).max()))
 
+        # Get reference and plot type
+        ref_ds = self.app.data.get_reference()
+        ref_path = ref_ds.get("path") if ref_ds else None
+        is_normalized = self.plot_type.get().startswith("Normalized ")
+
         for ds in datasets:
             t = ds["df"]["time"].to_numpy()
             x = ds["df"]["complex"].to_numpy()
@@ -261,20 +266,24 @@ class FrequencyPage(ToolkitPage):
             if self.show_time_preview.get():
                 ax.plot(t, x.real, alpha=0.8, label=ds.get("name", "Unnamed"))
             else:
+                # Skip plotting the reference
+                if is_normalized and ds.get("path") == ref_path:
+                    continue
+
                 res = ds.get("results", {})
-                fft_res = res.get("fft")
+                fft_res = res.get("fft_normalized" if is_normalized else "fft")
 
                 if fft_res is None:
-                    ax.text(
-                        0.5, 0.5,
-                        "Press 'Compute FFT' to generate spectrum.",
-                        ha="center", va="center",
-                        transform=ax.transAxes, color="gray"
-                    )
+                    if is_normalized:
+                        msg = "No normalized data.\nSet a reference in Time Domain, then click 'Compute FFT'."
+                    else:
+                        msg = "Press 'Compute FFT' to generate spectrum."
+                    ax.text(0.5, 0.5, msg, ha="center", va="center", transform=ax.transAxes, color="gray")
                     return
 
+                mag_key = self.plot_type.get().replace("Normalized ", "")
                 mag_res = compute_mag(fft_res["FFT"])
-                y = mag_res[self.plot_type.get()]  # "Magnitude" or "Magnitude (dB)"
+                y = mag_res[mag_key]
                 ax.plot(fft_res["Freqs"], y, label=ds.get("name", "Unnamed"))
 
         # Draw the window overlay
@@ -351,6 +360,15 @@ class FrequencyPage(ToolkitPage):
 
             # FFT changed, any cached phase/unwrap is now wrong
             ds["results"].pop("phase", None)
+            ds["results"].pop("fft_normalized", None)
+
+        # Compute normalized FFT if a reference is selected
+        ref_ds = self.app.data.get_reference()
+        if ref_ds and "fft" in ref_ds.get("results", {}):
+            ref_fft = ref_ds["results"]["fft"]
+            for ds in datasets:
+                ds["results"]["fft_normalized"] = normalize_fft(ds["results"]["fft"], ref_fft)
+
 
         self.app.refresh_view()
 

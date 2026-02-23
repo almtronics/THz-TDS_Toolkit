@@ -12,7 +12,7 @@ from tkinter import ttk
 import numpy as np
 
 from ui.base_page import ToolkitPage
-from core.processing import compute_phase, unwrap_phase
+from core.processing import compute_phase, unwrap_phase, normalize_fft
 
 class PhasePage(ToolkitPage):
     # Page for plotting frequency-domain phase waveform
@@ -42,7 +42,7 @@ class PhasePage(ToolkitPage):
         cb_view = ttk.Combobox(
             parent,
             textvariable=self.phase_view,
-            values=["Phase", "Unwrapped Phase"],
+            values=["Phase", "Unwrapped Phase", "Unwrapped Normalized Phase"],
             state="readonly"
         )
         cb_view.pack(fill=tk.X, pady=(0, 15))
@@ -95,8 +95,17 @@ class PhasePage(ToolkitPage):
         has_any_fft = False
         any_plotted = False
 
+        # Get the reference
+        ref_ds = self.app.data.get_reference()
+        ref_path = ref_ds.get("path") if ref_ds else None
+
         for ds in datasets:
+            # Skip plotting the reference
+            if view == "Unwrapped Normalized Phase" and ds.get("path") == ref_path:
+                continue
+
             fft_res = ds.get("results", {}).get("fft")
+
             if fft_res is None:
                 continue
 
@@ -104,7 +113,7 @@ class PhasePage(ToolkitPage):
             freqs = fft_res["Freqs"]
             fft_c = fft_res["FFT"]
 
-            # Wrapped phase view
+            # View 1: Wrapped phase view
             if self.preview_wrapped_phase.get() or view == "Phase":
                 y = compute_phase(fft_c)["Phase"]
                 if self.preview_wrapped_phase.get():
@@ -116,15 +125,23 @@ class PhasePage(ToolkitPage):
                 else:
                     ax.plot(freqs, y, label=ds.get("name", "Unnamed"))
                 any_plotted = True
-                continue
 
-            # Unwrapped Phase view
-            phase_res = ds.get("results", {}).get("phase")
-            if phase_res is None or "Unwrapped Phase" not in phase_res:
-                continue
+            # View 2: Unwrapped Normalized Phase view
+            elif view == "Unwrapped Normalized Phase":
+                phase_norm_res = ds.get("results", {}).get("phase_normalized")
+                if phase_norm_res is None or "Unwrapped Phase" not in phase_norm_res:
+                    continue
+                ax.plot(freqs, phase_norm_res["Unwrapped Phase"], label=ds.get("name", "Unnamed"))
+                any_plotted = True
 
-            ax.plot(freqs, phase_res["Unwrapped Phase"], label=ds.get("name", "Unnamed"))
-            any_plotted = True
+            # View 3: Standard Unwrapped Phase view
+            elif view == "Unwrapped Phase":
+                phase_res = ds.get("results", {}).get("phase")
+                if phase_res is None or "Unwrapped Phase" not in phase_res:
+                    continue
+                ax.plot(freqs, phase_res["Unwrapped Phase"], label=ds.get("name", "Unnamed"))
+                any_plotted = True
+
 
         if not has_any_fft:
             ax.text(
@@ -136,12 +153,11 @@ class PhasePage(ToolkitPage):
             return
 
         if not any_plotted:
-            ax.text(
-                0.5, 0.5,
-                "Press 'Unwrap phase' to compute the unwrapped phase.",
-                ha="center", va="center",
-                transform=ax.transAxes, color="gray",
-            )
+            if view == "Unwrapped Normalized Phase":
+                msg = "No normalized phase.\nCompute FFT with a reference set, then press 'Unwrap phase'."
+            else:
+                msg = "Press 'Unwrap phase' to compute the unwrapped phase."
+            ax.text(0.5, 0.5, msg, ha="center", va="center", transform=ax.transAxes, color="gray")
             return
 
         if self.preview_wrapped_phase.get():
@@ -167,11 +183,12 @@ class PhasePage(ToolkitPage):
             self.app._placeholder("Informed unwrap")
             return
 
+        # Compute unwrapped phase
         for ds in datasets:
             fft_res = ds.get("results", {}).get("fft")
             if fft_res is None: # FFT must be computed first
                 continue
-
+                
             phase = compute_phase(fft_res["FFT"])
             unwrapped = unwrap_phase(phase["Phase"])
 
@@ -179,6 +196,22 @@ class PhasePage(ToolkitPage):
             ds["results"]["phase"] = {
                 **phase,
                 **unwrapped,
+                "method": "Blind",
+            }
+            
+        # Compute normalized unwrapped phase
+        for ds in datasets:
+            fft_norm = ds.get("results", {}).get("fft_normalized")
+            if fft_norm is None:
+                continue
+                
+            phase_norm = compute_phase(fft_norm["FFT"])
+            unwrapped_norm = unwrap_phase(phase_norm["Phase"])
+            
+            ds.setdefault("results", {})
+            ds["results"]["phase_normalized"] = {
+                **phase_norm,
+                **unwrapped_norm,
                 "method": "Blind",
             }
 
