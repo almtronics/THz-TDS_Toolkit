@@ -82,11 +82,18 @@ def compute_fft(t, x, window_type="None", window_args=None, start_idx=0, stop_id
     dt = float(t[1] - t[0])
     X = np.fft.fft(xw)
     f = np.fft.fftfreq(len(xw), d=dt)
-
     half = len(xw) // 2
+    t_peak_ps = float(t[np.argmax(np.abs(xw))]) if len(xw) else float("nan")
     return {
         "Freqs": f[:half],
         "FFT": X[:half],
+        "t_peak_ps": t_peak_ps,
+        "window": {
+            "type": window_type,
+            "args": [] if window_args is None else list(window_args),
+            "start_idx": int(start_idx),
+            "stop_idx": int(stop_idx) if stop_idx is not None else None,
+        },
     }
 
 def normalize_fft (fft: dict, ref_fft: dict) -> dict:
@@ -153,4 +160,44 @@ def unwrap_phase(phase_wrapped):
 
     """
     return {"Unwrapped Phase": np.unwrap(phase_wrapped)}
+
+def unwrap_phase_informed(freqs_thz, T_complex, t0_sam_ps, t0_ref_ps, fit_mask=None, mag_threshold=0.2):
+    """
+    Jepsen inspired informed phase unwrapping
+    """
+    freqs_thz = np.asarray(freqs_thz)
+    T_complex = np.asarray(T_complex)
+
+    # Proposed automated informed unwrapping method
+    # (1) t0_sam_ps, t0_ref_ps: temporal peak positions passed as arguments
+    # (2)  T_complex = FFT(Esam) / FFT(Eref): complex transmission passed as argument
+    # (3) Calculate the reduced phase difference
+    # (3) Applied to ratio T rather than individual signals (Eq. 9)
+    phi0_diff = 2*np.pi * freqs_thz * (t0_sam_ps - t0_ref_ps)
+    phi_red = np.angle(T_complex * np.exp(-1j*phi0_diff))
+    # (4) Unwrap of reduced phase difference (Eq. 10)
+    dphi0_star = np.unwrap(phi_red)
+    # (5) Global phase offset correction (Eq. 11)
+    # Check for a global 2π phase offset by fitting a linear function φ(ω) = Aω + B
+    # to the central part of the phase curve
+    w = 2*np.pi * freqs_thz
+    if fit_mask is None:
+        mag = np.abs(T_complex)
+        fit_mask = (freqs_thz > 0) & (mag > mag_threshold*np.nanmax(mag))
+
+    B = 0.0
+    if np.count_nonzero(fit_mask) > 5:
+        A, B = np.polyfit(w[fit_mask], dphi0_star[fit_mask], 1)
+
+    dphi0 = dphi0_star - 2*np.pi * np.rint(B/(2*np.pi))
+    # (6) Reconstruct full phase difference (Eq. 12)
+    dphi_full = dphi0 + phi0_diff
     
+    return {
+        "Unwrapped Phase": dphi_full,
+        "Reduced Unwrapped Phase": dphi0,
+        "Method": "Informed",
+        "t0_sam_ps": float(t0_sam_ps),
+        "t0_ref_ps": float(t0_ref_ps),
+        "fit_intercept_B": float(B),
+    }
