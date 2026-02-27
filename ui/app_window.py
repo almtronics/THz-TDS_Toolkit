@@ -69,7 +69,7 @@ class THzToolkitApp:
             cfg = {
                 "app": {
                     "name": "THz-TDS Toolkit",
-                    "version": "0.0.1-alpha",
+                    "version": "1.0.0",
                 },
                 "page": self.current_page.name,
                 "config": self.current_page.get_config(),
@@ -249,7 +249,7 @@ class THzToolkitApp:
 
     def show_about(self) -> None:
         """Displays application information."""
-        messagebox.showinfo("About", "Terahertz Time-domain Toolkit (TTT)\nVersion 0.0.1-alpha\n© 2026")
+        messagebox.showinfo("About", "Terahertz Time-domain Toolkit (TTT)\nVersion 1.0.0\n© 2026")
 
     def _setup_menu(self) -> None:
         """Creates the top menu bar"""
