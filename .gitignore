@@ -1,3 +1,4 @@
+*.xcf
 *.pyc
 __pycache__/
 # PyInstaller
