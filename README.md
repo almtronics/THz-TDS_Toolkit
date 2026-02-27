@@ -10,13 +10,35 @@
 A lightweight GUI toolkit for viewing, processing and extracting data from terahertz time-domain spectroscopy (THz‑TDS) measurements.
 
 ## Features
-
-- Load one or more datasets (currently limited to csv files with a simple time/real/imag layout).
-- Time-domain view (raw waveform)
--   Frequency-domain analysis via FFT [1]
-    - Magnitude view
-    - Phase unwrapping [2] 
-- Signal windowing [2], [3]
+### Time Domain
+![Time Domain](img/TimeDomain.png)
+- Load one or more datasets 
+- Preview raw time domain waveforms
+- Select a reference signal for normalization
+### Frequency Domain
+![Frequency Domain](img/FrequencyDomain.png)
+![Frequency Domain Window](img/FrequencyDomainWindow.png)
+- Compute Fourier transform [1]
+- Select plot type to display
+  - Magnitude
+  - Magnitude (dB)
+  - Normalized Magnitude
+  - Normalized Magnitude (dB)
+- Signal windowing [2] [3]
+  - Preview window over time-domain signal
+  - Select window type
+  - Choose start and stop indices
+  - Control window arguments
+### Phase Analysis
+![Phase Analysis](img/PhaseAnalysis.png)
+- Select plot type to display
+  - Phase
+  - Unwrapped phase
+- Compute Unwrapping [2]
+- Select unwrapping method
+  - Blind 
+  - Informed [4]
+- Preview datapoints for all signal in the [-π, π] range
 
 ## Requirements
 
@@ -36,3 +58,4 @@ A lightweight GUI toolkit for viewing, processing and extracting data from terah
 
 [3] J. Vázquez-Cabo, P. Chamorro-Posada, F. J. Fraile-Peláez, Ó. Rubiños-López, J. M. López-Santos, and P. Martín-Ramos, “Windowing of THz time-domain spectroscopy signals: A study based on lactose,” Optics Communications, vol. 366, pp. 386–396, May 2016, doi: [10.1016/j.optcom.2015.12.069](https://doi.org/10.1016/j.optcom.2015.12.069).
 
+[4] P. U. Jepsen, “Phase Retrieval in Terahertz Time-Domain Measurements: a ‘how to’ Tutorial,” J Infrared Milli Terahz Waves, vol. 40, no. 4, pp. 395–411, Apr. 2019, doi: [10.1007/s10762-019-00578-0](https://doi.org/10.1007/s10762-019-00578-0).
